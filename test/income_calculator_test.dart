@@ -152,6 +152,43 @@ void main() {
     expect(income, closeTo(5 * 7 * 3600 * octoberRate, 1e-4));
   });
 
+  test('custom times change only today schedule and income', () {
+    const custom = WorkConfig(
+      salary: 21000,
+      lunchHours: 1,
+      overtimeHours: 0,
+      mode: WorkMode.doubleRest,
+      dayStartHour: 10,
+      dayEndHour: 19,
+    );
+    final now = DateTime(2026, 11, 4, 14);
+    final snapshot = IncomeCalculator.snapshot(custom, now);
+    expect(snapshot.shiftStart, DateTime(2026, 11, 4, 10));
+    expect(snapshot.shiftEnd, DateTime(2026, 11, 4, 19));
+    expect(snapshot.countdown, const Duration(hours: 5));
+    expect(snapshot.todayScheduledPaidSeconds, 8 * 3600);
+    final rate = 21000 / (21 * 7 * 3600);
+    expect(snapshot.todayIncome, closeTo(3 * 3600 * rate, 1e-6));
+    expect(
+      IncomeCalculator.paidSeconds(custom, DateTime(2026, 11, 3), now),
+      7 * 3600,
+    );
+
+    const morningOnly = WorkConfig(
+      salary: 21000,
+      lunchHours: 1,
+      overtimeHours: 0,
+      mode: WorkMode.doubleRest,
+      dayStartHour: 10,
+    );
+    final defaultEvening = IncomeCalculator.snapshot(
+      morningOnly,
+      DateTime(2026, 11, 4, 11),
+    );
+    expect(defaultEvening.shiftStart, DateTime(2026, 11, 4, 10));
+    expect(defaultEvening.shiftEnd, DateTime(2026, 11, 4, 17));
+  });
+
   test('saved config rejects values outside the form rules', () {
     expect(
       WorkConfig.tryParse({
@@ -195,6 +232,39 @@ void main() {
         'lunchHours': 1,
         'overtimeHours': 6.5,
         'mode': 'doubleRest',
+      }),
+      isNull,
+    );
+    expect(
+      WorkConfig.tryParse({
+        'salary': 8000,
+        'lunchHours': 1,
+        'overtimeHours': 0,
+        'mode': 'doubleRest',
+        'dayStartHour': 0,
+        'dayEndHour': 18.5,
+      })?.dayEndHour,
+      18.5,
+    );
+    expect(
+      WorkConfig.tryParse({
+        'salary': 8000,
+        'lunchHours': 1,
+        'overtimeHours': 0,
+        'mode': 'doubleRest',
+        'dayStartHour': 0,
+        'dayEndHour': 18.5,
+      })?.dayStartHour,
+      0,
+    );
+    expect(
+      WorkConfig.tryParse({
+        'salary': 8000,
+        'lunchHours': 1,
+        'overtimeHours': 0,
+        'mode': 'doubleRest',
+        'dayStartHour': 18,
+        'dayEndHour': 9,
       }),
       isNull,
     );

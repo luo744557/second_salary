@@ -154,6 +154,14 @@ class AppModel extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
     _closing = true;
+    _disposed = true;
+    _align?.cancel();
+    _timer?.cancel();
+    try {
+      await DesktopWindow.instance.beginShutdown();
+    } catch (error, stack) {
+      debugPrint('隐藏窗口失败: $error\n$stack');
+    }
     try {
       await persist();
     } catch (error, stack) {

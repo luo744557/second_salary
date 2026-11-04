@@ -91,7 +91,20 @@ class DesktopWindow {
 
   Future<bool> isMaximized() => windowManager.isMaximized();
 
+  /// Windows 先藏起窗口，避免拆引擎时窗口还停在屏幕上。
+  Future<void> beginShutdown() async {
+    if (Platform.isWindows) {
+      await windowManager.hide();
+    }
+  }
+
   Future<void> shutdown() async {
+    if (Platform.isWindows) {
+      // destroy 只是退出消息循环，随后还要拆 Flutter 引擎，低配机器上会多停几秒。
+      // 配置已经写完，这里直接结束进程。
+      Process.killPid(pid, ProcessSignal.sigkill);
+      return;
+    }
     await windowManager.setPreventClose(false);
     await windowManager.destroy();
   }

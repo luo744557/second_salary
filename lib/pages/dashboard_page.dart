@@ -203,15 +203,24 @@ class _CountdownCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           TText(
-            resting
-                ? '今天不计入工时，收入暂停累计。'
-                : '下班 ${formatClockTime(snapshot.shiftEnd)} · 午休 ${formatClockTime(snapshot.lunchStart)}-${formatClockTime(snapshot.lunchEnd)}',
+            resting ? '今天不计入工时，收入暂停累计。' : _todaySchedule(snapshot),
             style: TextStyle(color: token.textColorSecondary, height: 1.5),
           ),
         ],
       ),
     );
   }
+}
+
+String _todaySchedule(IncomeSnapshot snapshot) {
+  final lunchInside =
+      snapshot.lunchStart.isBefore(snapshot.shiftEnd) &&
+      snapshot.lunchEnd.isAfter(snapshot.shiftStart);
+  final lunch = lunchInside
+      ? ' · 午休 ${formatClockTime(snapshot.lunchStart)}-${formatClockTime(snapshot.lunchEnd)}'
+      : '';
+  final hours = formatHours(snapshot.todayScheduledPaidSeconds / 3600);
+  return '今日 ${formatClockTime(snapshot.shiftStart)}-${formatClockTime(snapshot.shiftEnd)} · 计薪 $hours$lunch';
 }
 
 class _RateCard extends StatelessWidget {

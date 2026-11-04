@@ -22,6 +22,8 @@ class _SetupPageState extends State<SetupPage> {
   String _salary = '';
   String _lunch = '';
   String _overtime = '';
+  String _dayStart = '';
+  String _dayEnd = '';
   WorkMode _mode = WorkMode.doubleRest;
 
   @override
@@ -33,6 +35,8 @@ class _SetupPageState extends State<SetupPage> {
     _overtime = config != null && config.overtimeHours > 0
         ? formatHourValue(config.overtimeHours)
         : '';
+    _dayStart = _clockText(config?.dayStartHour);
+    _dayEnd = _clockText(config?.dayEndHour);
     _mode = config?.mode ?? WorkMode.doubleRest;
     _salaryController = TextEditingController(text: _salary);
     _lunchController = TextEditingController(text: _lunch);
@@ -113,7 +117,7 @@ class _SetupPageState extends State<SetupPage> {
         ),
         const SizedBox(height: 12),
         TText(
-          '月工资会按当前月份的实际计薪秒数拆开。每天 09:00 上班，标准在岗 8 小时，午休从 12:00 开始并且不计薪，加班加在 8 小时之后。',
+          '月工资会按当前月份的实际计薪秒数拆开。默认早九晚五，09:00 上班、17:00 下班，午休从 12:00 开始并且不计薪，加班加在 17:00 之后。',
           style: TextStyle(
             fontSize: 14,
             height: 1.6,
@@ -129,6 +133,9 @@ class _SetupPageState extends State<SetupPage> {
   Widget _preview(TThemeData token) {
     final config = _draftConfig();
     final now = DateTime.now();
+    final preview = config == null
+        ? null
+        : IncomeCalculator.snapshot(config, now);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -155,6 +162,13 @@ class _SetupPageState extends State<SetupPage> {
                 TText(
                   '${config.mode.label} · ${now.year}年${now.month}月 '
                   '${IncomeCalculator.workDaysInMonth(now.year, now.month, config.mode)} 个计薪日',
+                  style: TextStyle(
+                    color: token.textColorSecondary,
+                    height: 1.5,
+                  ),
+                ),
+                TText(
+                  '今日 ${formatClockTime(preview!.shiftStart)}-${formatClockTime(preview.shiftEnd)}，计薪 ${formatHours(preview.todayScheduledPaidSeconds / 3600)}',
                   style: TextStyle(
                     color: token.textColorSecondary,
                     height: 1.5,
@@ -188,6 +202,8 @@ class _SetupPageState extends State<SetupPage> {
             _salaryField(),
             _lunchField(),
             _overtimeField(),
+            _dayStartField(),
+            _dayEndField(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: Column(
@@ -313,15 +329,124 @@ class _SetupPageState extends State<SetupPage> {
       builder: (context, value, onChanged, errorText) {
         return _RuleField(
           label: '日常加班时长',
-          help: '选填。可填正整数，小数最多两位，不超过 6',
+          help: '选填。可填正整数，小数最多两位，不超过 6。填 0 视为不填',
+          blankIfZero: true,
           unit: '小时',
           controller: _overtimeController,
           hintText: '例如 1 或 1.5',
           inputType: const TextInputType.numberWithOptions(decimal: true),
-          inputAction: TextInputAction.done,
+          inputAction: TextInputAction.next,
           inputFormatters: const [_OvertimeFormatter()],
           errorText: errorText,
           onChanged: onChanged,
+        );
+      },
+    );
+  }
+
+  Widget _dayStartField() {
+    return TFormField<String>(
+      name: 'dayStart',
+      value: _dayStart,
+      onChanged: (value) => setState(() => _dayStart = value),
+      validator: (value) => _validateDayPoint(value, isEnd: false),
+      builder: (context, value, onChanged, errorText) {
+        return _TimePointField(
+          label: '当天上班时间',
+          help: '选填。点按选择时间。不选时按 09:00。',
+          value: _dayStart,
+          placeholder: '默认 09:00',
+          errorText: errorText,
+          onPick: () => _pickClock(isEnd: false, onChanged: onChanged),
+          onClear: _dayStart.isEmpty
+              ? null
+              : () {
+                  onChanged?.call('');
+                  setState(() => _dayStart = '');
+                },
+        );
+      },
+    );
+  }
+
+  Widget _dayEndField() {
+    return TFormField<String>(
+      name: 'dayEnd',
+      value: _dayEnd,
+      onChanged: (value) => setState(() => _dayEnd = value),
+      validator: (value) => _validateDayPoint(value, isEnd: true),
+      builder: (context, value, onChanged, errorText) {
+        return _TimePointField(
+          label: '当天下班时间',
+          help: '选填。点按选择时间。不选时按 17:00，加班加在 17:00 之后。',
+          value: _dayEnd,
+          placeholder: '默认 17:00',
+          errorText: errorText,
+          onPick: () => _pickClock(isEnd: true, onChanged: onChanged),
+          onClear: _dayEnd.isEmpty
+              ? null
+              : () {
+                  onChanged?.call('');
+                  setState(() => _dayEnd = '');
+                },
+        );
+      },
+    );
+  }
+
+  void _pickClock({
+    required bool isEnd,
+    required ValueChanged<String>? onChanged,
+  }) {
+    final current = _clockHours(isEnd ? _dayEnd : _dayStart);
+    final totalMinutes = current == null
+        ? (isEnd ? 17 : 9) * 60
+        : (current * 60).round();
+    var selected = TDateTimePickerValue(
+      hour: totalMinutes ~/ 60,
+      minute: totalMinutes % 60,
+    );
+    TPickerPopup.show(
+      context,
+      destroyOnClose: true,
+      child: _ClockWheel(
+        initial: selected,
+        onChanged: (value) => selected = value,
+      ),
+      headerBuilder: (context, close) {
+        final token = context.tTheme;
+        return TPopupHeader(
+          title: Text(isEnd ? '当天下班时间' : '当天上班时间'),
+          cancelButton: GestureDetector(
+            onTap: close,
+            child: TText(
+              '取消',
+              style: TextStyle(color: token.textColorSecondary),
+            ),
+          ),
+          confirmButton: GestureDetector(
+            onTap: () {
+              final text = _clockText(
+                (selected.hour ?? 0) + (selected.minute ?? 0) / 60,
+              );
+              onChanged?.call(text);
+              setState(() {
+                if (isEnd) {
+                  _dayEnd = text;
+                } else {
+                  _dayStart = text;
+                }
+              });
+              close();
+            },
+            child: TText(
+              '确定',
+              style: TextStyle(
+                color: token.brandColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         );
       },
     );
@@ -331,10 +456,14 @@ class _SetupPageState extends State<SetupPage> {
     final salaryError = _validateSalary(_salary);
     final lunchError = _validateLunch(_lunch);
     final overtimeError = _validateOvertime(_overtime);
+    final startError = _validateDayPoint(_dayStart, isEnd: false);
+    final endError = _validateDayPoint(_dayEnd, isEnd: true);
     if (_salary.isEmpty ||
         salaryError != null ||
         lunchError != null ||
-        overtimeError != null) {
+        overtimeError != null ||
+        startError != null ||
+        endError != null) {
       return null;
     }
     if (_lunch.isEmpty) {
@@ -343,8 +472,10 @@ class _SetupPageState extends State<SetupPage> {
     return WorkConfig(
       salary: int.parse(_salary),
       lunchHours: double.parse(_lunch),
-      overtimeHours: _overtime.isEmpty ? 0.0 : double.parse(_overtime),
+      overtimeHours: _optionalHours(_overtime) ?? 0,
       mode: _mode,
+      dayStartHour: _clockHours(_dayStart),
+      dayEndHour: _clockHours(_dayEnd),
     );
   }
 
@@ -387,19 +518,74 @@ class _SetupPageState extends State<SetupPage> {
   }
 
   String? _validateOvertime(String? value) {
-    final text = value?.trim() ?? '';
-    if (text.isEmpty) {
+    final hours = _optionalHours(value);
+    if (_isBlankNumber(value)) {
       return null;
     }
-    if (!RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(text)) {
+    if (hours == null) {
       return '请输入正整数，或最多两位小数';
     }
-    final hours = double.tryParse(text);
-    if (hours == null || hours <= 0 || hours > WorkConfig.maxOvertimeHours) {
+    if (hours > WorkConfig.maxOvertimeHours) {
       return '请输入大于 0 且不超过 6 的数字';
     }
     return null;
   }
+
+  String? _validateDayPoint(String? value, {required bool isEnd}) {
+    final text = value?.trim() ?? '';
+    final hours = text.isEmpty ? null : _clockHours(text);
+    if (text.isNotEmpty && hours == null) {
+      return '请选择时间';
+    }
+    final start = isEnd ? _clockHours(_dayStart) : hours;
+    final end = isEnd ? hours : _clockHours(_dayEnd);
+    if (start != null && end != null && end <= start) {
+      return isEnd ? '下班时间要晚于上班时间' : null;
+    }
+    final defaultEnd =
+        WorkConfig.shiftEndHour + (_optionalHours(_overtime) ?? 0.0);
+    if (!isEnd && end == null && start != null && start >= defaultEnd) {
+      return '上班时间要早于默认下班 ${formatHourValue(defaultEnd)} 点';
+    }
+    if (isEnd &&
+        start == null &&
+        end != null &&
+        end <= WorkConfig.shiftStartHour) {
+      return '下班时间要晚于 09:00';
+    }
+    return null;
+  }
+
+  String _clockText(double? hours) {
+    if (hours == null) {
+      return '';
+    }
+    final total = (hours * 60).round().clamp(0, 24 * 60);
+    final hour = total ~/ 60;
+    final minute = total % 60;
+    return '${hour.toString().padLeft(2, '0')}:'
+        '${minute.toString().padLeft(2, '0')}';
+  }
+}
+
+double? _clockHours(String? raw) {
+  final text = raw?.trim() ?? '';
+  if (text.isEmpty) {
+    return null;
+  }
+  final match = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(text);
+  if (match == null) {
+    return null;
+  }
+  final hour = int.parse(match.group(1)!);
+  final minute = int.parse(match.group(2)!);
+  if (hour == 24 && minute == 0) {
+    return 24;
+  }
+  if (hour > 23 || minute > 59) {
+    return null;
+  }
+  return hour + minute / 60;
 }
 
 class _RuleField extends StatefulWidget {
@@ -415,6 +601,7 @@ class _RuleField extends StatefulWidget {
     required this.onChanged,
     this.errorText,
     this.required = false,
+    this.blankIfZero = false,
   });
 
   final String label;
@@ -428,6 +615,7 @@ class _RuleField extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final String? errorText;
   final bool required;
+  final bool blankIfZero;
 
   @override
   State<_RuleField> createState() => _RuleFieldState();
@@ -440,13 +628,24 @@ class _RuleFieldState extends State<_RuleField> {
   @override
   void initState() {
     super.initState();
-    _focusNode.addListener(() => setState(() {}));
+    _focusNode.addListener(_onFocus);
   }
 
   @override
   void dispose() {
+    _focusNode.removeListener(_onFocus);
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onFocus() {
+    if (!_focusNode.hasFocus &&
+        widget.blankIfZero &&
+        _isBlankNumber(widget.controller.text)) {
+      widget.controller.clear();
+      widget.onChanged?.call('');
+    }
+    setState(() {});
   }
 
   @override
@@ -670,6 +869,27 @@ class _PositiveIntFormatter extends TextInputFormatter {
   }
 }
 
+bool _isBlankNumber(String? raw) {
+  final text = raw?.trim() ?? '';
+  if (text.isEmpty) {
+    return true;
+  }
+  final hours = double.tryParse(text);
+  return hours == 0 && RegExp(r'^\d+(\.\d*)?$').hasMatch(text);
+}
+
+/// 选填数字。空和 0 都视为未填写。格式不对时返回 null，且 [_isBlankNumber] 为 false。
+double? _optionalHours(String? raw) {
+  final text = raw?.trim() ?? '';
+  if (_isBlankNumber(text)) {
+    return null;
+  }
+  if (!RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(text)) {
+    return null;
+  }
+  return double.parse(text);
+}
+
 class _LunchFormatter extends TextInputFormatter {
   const _LunchFormatter();
 
@@ -699,5 +919,179 @@ class _OvertimeFormatter extends TextInputFormatter {
       return newValue;
     }
     return oldValue;
+  }
+}
+
+class _TimePointField extends StatefulWidget {
+  const _TimePointField({
+    required this.label,
+    required this.help,
+    required this.value,
+    required this.placeholder,
+    required this.onPick,
+    this.onClear,
+    this.errorText,
+  });
+
+  final String label;
+  final String help;
+  final String value;
+  final String placeholder;
+  final VoidCallback onPick;
+  final VoidCallback? onClear;
+  final String? errorText;
+
+  @override
+  State<_TimePointField> createState() => _TimePointFieldState();
+}
+
+class _TimePointFieldState extends State<_TimePointField> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final token = context.tTheme;
+    final invalid = widget.errorText != null;
+    final filled = widget.value.isNotEmpty;
+    final borderColor = invalid
+        ? token.errorColor
+        : _hovered
+        ? const Color(0xFF86868B)
+        : const Color(0xFFD2D2D7);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              TText(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 17,
+                  height: 1.3,
+                  fontWeight: FontWeight.w600,
+                  color: token.textColorPrimary,
+                ),
+              ),
+              const Spacer(),
+              TText(
+                '选填',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: token.textColorPlaceholder,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          TText(
+            widget.help,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: token.textColorSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            onEnter: (_) => setState(() => _hovered = true),
+            onExit: (_) => setState(() => _hovered = false),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: borderColor,
+                  width: invalid ? 2 : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: widget.onPick,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
+                        child: TText(
+                          filled ? widget.value : widget.placeholder,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: filled
+                                ? token.textColorPrimary
+                                : token.textColorPlaceholder,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (widget.onClear != null)
+                    GestureDetector(
+                      onTap: widget.onClear,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 14, 16, 14),
+                        child: TText(
+                          '清除',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: token.brandColor,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (invalid) ...[
+            const SizedBox(height: 6),
+            TText(
+              widget.errorText!,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: token.errorColor,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ClockWheel extends StatefulWidget {
+  const _ClockWheel({required this.initial, required this.onChanged});
+
+  final TDateTimePickerValue initial;
+  final ValueChanged<TDateTimePickerValue> onChanged;
+
+  @override
+  State<_ClockWheel> createState() => _ClockWheelState();
+}
+
+class _ClockWheelState extends State<_ClockWheel> {
+  late TDateTimePickerValue _value = widget.initial;
+
+  @override
+  Widget build(BuildContext context) {
+    return TDateTimePicker(
+      value: _value,
+      mode: DateTimePickerMode(timeMode: TimeMode.minute),
+      onChanged: (value) {
+        setState(() => _value = value);
+        widget.onChanged(value);
+      },
+    );
   }
 }

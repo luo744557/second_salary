@@ -28,6 +28,7 @@ class IncomeSnapshot {
     required this.shiftEnd,
     required this.lunchStart,
     required this.lunchEnd,
+    required this.todayScheduledPaidSeconds,
   });
 
   final DateTime now;
@@ -42,6 +43,9 @@ class IncomeSnapshot {
   final DateTime shiftEnd;
   final DateTime lunchStart;
   final DateTime lunchEnd;
+
+  /// 今天这个班次全部走完后的计薪秒数，已扣掉落在班次里的午休。
+  final int todayScheduledPaidSeconds;
 
   bool get accruing => phase == ClockPhase.working;
 }
@@ -59,18 +63,34 @@ class _Shift {
   final DateTime lunchEnd;
   final DateTime end;
 
-  static _Shift of(DateTime day, WorkConfig config) {
+  static _Shift of(DateTime day, WorkConfig config, DateTime now) {
     final date = DateTime(day.year, day.month, day.day);
-    final start = date.add(const Duration(hours: WorkConfig.shiftStartHour));
-    final lunchStart = date.add(
-      const Duration(hours: WorkConfig.lunchStartHour),
+    final today = DateTime(now.year, now.month, now.day);
+    final custom = date == today;
+    final start = _atHours(
+      date,
+      custom
+          ? (config.dayStartHour ?? WorkConfig.shiftStartHour.toDouble())
+          : WorkConfig.shiftStartHour.toDouble(),
+    );
+    final lunchStart = _atHours(date, WorkConfig.lunchStartHour.toDouble());
+    final end = _atHours(
+      date,
+      custom && config.dayEndHour != null
+          ? config.dayEndHour!
+          : WorkConfig.shiftEndHour + config.overtimeHours,
     );
     return _Shift(
       start: start,
       lunchStart: lunchStart,
       lunchEnd: lunchStart.add(Duration(seconds: config.lunchSeconds)),
-      end: start.add(Duration(seconds: config.grossShiftSeconds)),
+      end: end,
     );
+  }
+
+  static DateTime _atHours(DateTime date, double hours) {
+    final minutes = (hours * 60).round();
+    return date.add(Duration(minutes: minutes));
   }
 }
 
@@ -79,7 +99,7 @@ class IncomeCalculator {
   const IncomeCalculator._();
 
   static IncomeSnapshot snapshot(WorkConfig config, DateTime now) {
-    final shift = _Shift.of(now, config);
+    final shift = _Shift.of(now, config, now);
     final phase = _phase(config, now, shift);
     final today = DateTime(now.year, now.month, now.day);
     return IncomeSnapshot(
@@ -101,6 +121,7 @@ class IncomeCalculator {
       shiftEnd: shift.end,
       lunchStart: shift.lunchStart,
       lunchEnd: shift.lunchEnd,
+      todayScheduledPaidSeconds: _scheduledPaidSeconds(shift),
     );
   }
 
@@ -175,9 +196,8 @@ class IncomeCalculator {
     if (!isWorkDay(day, config.mode)) {
       return 0;
     }
-    final shift = _Shift.of(day, config);
-    return _overlapSeconds(shift.start, shift.lunchStart, now) +
-        _overlapSeconds(shift.lunchEnd, shift.end, now);
+    final shift = _Shift.of(day, config, now);
+    return _paidUntil(shift, now);
   }
 
   static double _incomeOn(WorkConfig config, DateTime day, DateTime now) {
@@ -188,13 +208,38 @@ class IncomeCalculator {
     return seconds * perSecondIncome(config, day);
   }
 
-  static int _overlapSeconds(DateTime start, DateTime end, DateTime now) {
-    if (!now.isAfter(start) || !end.isAfter(start)) {
+  static int _scheduledPaidSeconds(_Shift shift) =>
+      _paidUntil(shift, shift.end);
+
+  /// 从上班到 [now]（不超过下班）的计薪秒数，扣掉与午休重叠的部分。
+  static int _paidUntil(_Shift shift, DateTime now) {
+    final windowEnd = now.isBefore(shift.end) ? now : shift.end;
+    if (!windowEnd.isAfter(shift.start)) {
       return 0;
     }
-    final clipped = now.isBefore(end) ? now : end;
-    final seconds = clipped.difference(start).inSeconds;
-    return seconds < 0 ? 0 : seconds;
+    final gross = windowEnd.difference(shift.start).inSeconds;
+    final lunch = _intervalSeconds(
+      shift.start,
+      windowEnd,
+      shift.lunchStart,
+      shift.lunchEnd,
+    );
+    final paid = gross - lunch;
+    return paid < 0 ? 0 : paid;
+  }
+
+  static int _intervalSeconds(
+    DateTime aStart,
+    DateTime aEnd,
+    DateTime bStart,
+    DateTime bEnd,
+  ) {
+    final start = aStart.isAfter(bStart) ? aStart : bStart;
+    final end = aEnd.isBefore(bEnd) ? aEnd : bEnd;
+    if (!end.isAfter(start)) {
+      return 0;
+    }
+    return end.difference(start).inSeconds;
   }
 
   static ClockPhase _phase(WorkConfig config, DateTime now, _Shift shift) {

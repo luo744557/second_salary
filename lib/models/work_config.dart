@@ -51,13 +51,18 @@ class WorkConfig {
     required this.lunchHours,
     required this.overtimeHours,
     required this.mode,
+    this.dayStartHour,
+    this.dayEndHour,
   });
 
   /// 标准在岗时长，午休包含在这 8 小时内，不计薪。
   static const baseHours = 8.0;
 
-  /// 上班时间。
+  /// 上班时间。早九。
   static const shiftStartHour = 9;
+
+  /// 下班时间。晚五。加班加在这之后。
+  static const shiftEndHour = 17;
 
   /// 午休开始时间。
   static const lunchStartHour = 12;
@@ -73,6 +78,12 @@ class WorkConfig {
 
   /// 每日加班时长，单位小时。可以是整数，也可以带最多两位小数。0 表示不加班。
   final double overtimeHours;
+
+  /// 当天上班时间，从 0 点起算的小时。为空时按 09:00。
+  final double? dayStartHour;
+
+  /// 当天下班时间，从 0 点起算的小时。为空时按晚五 17:00，加班再往后加。
+  final double? dayEndHour;
 
   final WorkMode mode;
 
@@ -91,6 +102,8 @@ class WorkConfig {
     'lunchHours': lunchHours,
     'overtimeHours': overtimeHours,
     'mode': mode.name,
+    'dayStartHour': ?dayStartHour,
+    'dayEndHour': ?dayEndHour,
   };
 
   static WorkConfig? tryParse(Map<String, dynamic> json) {
@@ -106,10 +119,18 @@ class WorkConfig {
     }
     final lunchHours = (lunch.toDouble() * 100).round() / 100;
     final overtimeHours = (overtime.toDouble() * 100).round() / 100;
+    final startRead = _readOptionalHour(json['dayStartHour']);
+    final endRead = _readOptionalHour(json['dayEndHour']);
+    if (!startRead.ok || !endRead.ok) {
+      return null;
+    }
+    final start = startRead.hours;
+    final end = endRead.hours;
     if (lunchHours < 0.5 ||
         lunchHours > 2.5 ||
         overtimeHours < 0 ||
-        overtimeHours > maxOvertimeHours) {
+        overtimeHours > maxOvertimeHours ||
+        !_sameDaySchedule(start, end, overtimeHours)) {
       return null;
     }
     return WorkConfig(
@@ -117,6 +138,33 @@ class WorkConfig {
       lunchHours: lunchHours,
       overtimeHours: overtimeHours,
       mode: mode,
+      dayStartHour: start,
+      dayEndHour: end,
     );
+  }
+
+  /// 缺失视为未填写。0 表示当天 00:00。
+  static ({double? hours, bool ok}) _readOptionalHour(Object? raw) {
+    if (raw == null) {
+      return (hours: null, ok: true);
+    }
+    if (raw is! num) {
+      return (hours: null, ok: false);
+    }
+    final hours = (raw.toDouble() * 100).round() / 100;
+    if (hours < 0 || hours > 24) {
+      return (hours: null, ok: false);
+    }
+    return (hours: hours, ok: true);
+  }
+
+  static bool _sameDaySchedule(
+    double? start,
+    double? end,
+    double overtimeHours,
+  ) {
+    final resolvedStart = start ?? shiftStartHour.toDouble();
+    final resolvedEnd = end ?? shiftEndHour + overtimeHours;
+    return resolvedEnd > resolvedStart && resolvedEnd <= 24;
   }
 }
