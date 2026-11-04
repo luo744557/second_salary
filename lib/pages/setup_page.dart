@@ -25,6 +25,7 @@ class _SetupPageState extends State<SetupPage> {
   String _dayStart = '';
   String _dayEnd = '';
   WorkMode _mode = WorkMode.doubleRest;
+  bool _showFloatPerSecond = true;
 
   @override
   void initState() {
@@ -38,6 +39,7 @@ class _SetupPageState extends State<SetupPage> {
     _dayStart = _clockText(config?.dayStartHour);
     _dayEnd = _clockText(config?.dayEndHour);
     _mode = config?.mode ?? WorkMode.doubleRest;
+    _showFloatPerSecond = config?.showFloatPerSecond ?? true;
     _salaryController = TextEditingController(text: _salary);
     _lunchController = TextEditingController(text: _lunch);
     _overtimeController = TextEditingController(text: _overtime);
@@ -145,46 +147,49 @@ class _SetupPageState extends State<SetupPage> {
       ),
       child: config == null
           ? TText(
-              '填完工资和午休时长后，这里会预览本月计薪日和每秒收入。',
+              '填完工资和午休时长后，这里会显示本月计算规则。',
               style: TextStyle(color: token.textColorSecondary, height: 1.5),
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 TText(
-                  '本月预览',
+                  '本月计算规则',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     color: token.textColorPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
-                TText(
-                  '${config.mode.label} · ${now.year}年${now.month}月 '
-                  '${IncomeCalculator.workDaysInMonth(now.year, now.month, config.mode)} 个计薪日',
-                  style: TextStyle(
-                    color: token.textColorSecondary,
-                    height: 1.5,
+                for (final line in _ruleLines(config, preview!, now))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: TText(
+                      line,
+                      style: TextStyle(
+                        height: 1.45,
+                        color: token.textColorSecondary,
+                      ),
+                    ),
                   ),
-                ),
-                TText(
-                  '今日 ${formatClockTime(preview!.shiftStart)}-${formatClockTime(preview.shiftEnd)}，计薪 ${formatHours(preview.todayScheduledPaidSeconds / 3600)}',
-                  style: TextStyle(
-                    color: token.textColorSecondary,
-                    height: 1.5,
-                  ),
-                ),
-                TText(
-                  '每日计薪 ${formatHours(config.dailyPaidHours)}，每秒 ${formatPerSecond(IncomeCalculator.perSecondIncome(config, now))} 元',
-                  style: TextStyle(
-                    color: token.brandColor,
-                    height: 1.6,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
               ],
             ),
     );
+  }
+
+  List<String> _ruleLines(
+    WorkConfig config,
+    IncomeSnapshot preview,
+    DateTime now,
+  ) {
+    final monthlySeconds = preview.workDays * config.dailyPaidSeconds;
+    return [
+      '每日计薪 ${formatHours(config.dailyPaidHours)} = 8 - 午休 ${formatHourValue(config.lunchHours)} + 加班 ${formatHourValue(config.overtimeHours)}',
+      '${config.mode.label}：${config.mode.detail}',
+      '${now.year}年${now.month}月共 ${preview.workDays} 个计薪日',
+      '今日 ${formatClockTime(preview.shiftStart)}-${formatClockTime(preview.shiftEnd)}，计薪 ${formatHours(preview.todayScheduledPaidSeconds / 3600)}',
+      '每秒收入 = ${config.salary} 元 ÷ ($monthlySeconds 秒)',
+    ];
   }
 
   Widget _formCard(AppModel model, TThemeData token) {
@@ -232,6 +237,45 @@ class _SetupPageState extends State<SetupPage> {
                       selected: _mode == mode,
                       onTap: () => setState(() => _mode = mode),
                     ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TText(
+                          '悬浮窗每秒收入',
+                          style: TextStyle(
+                            fontSize: 17,
+                            height: 1.3,
+                            fontWeight: FontWeight.w600,
+                            color: token.textColorPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        TText(
+                          '打开时，悬浮窗显示每秒加多少元。关闭后隐藏这段，并缩小窗口。',
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: token.textColorSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  TSwitch(
+                    value: _showFloatPerSecond,
+                    onChanged: (value) =>
+                        setState(() => _showFloatPerSecond = value),
+                  ),
                 ],
               ),
             ),
@@ -476,6 +520,7 @@ class _SetupPageState extends State<SetupPage> {
       mode: _mode,
       dayStartHour: _clockHours(_dayStart),
       dayEndHour: _clockHours(_dayEnd),
+      showFloatPerSecond: _showFloatPerSecond,
     );
   }
 

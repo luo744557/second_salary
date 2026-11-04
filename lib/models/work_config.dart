@@ -53,6 +53,7 @@ class WorkConfig {
     required this.mode,
     this.dayStartHour,
     this.dayEndHour,
+    this.showFloatPerSecond = true,
   });
 
   /// 标准在岗时长，午休包含在这 8 小时内，不计薪。
@@ -85,6 +86,9 @@ class WorkConfig {
   /// 当天下班时间，从 0 点起算的小时。为空时按晚五 17:00，加班再往后加。
   final double? dayEndHour;
 
+  /// 悬浮窗是否显示「每秒加多少元」。关闭后窗口会收小。
+  final bool showFloatPerSecond;
+
   final WorkMode mode;
 
   /// 每日计薪工时：8 小时减去午休，再加上加班。
@@ -104,6 +108,7 @@ class WorkConfig {
     'mode': mode.name,
     'dayStartHour': ?dayStartHour,
     'dayEndHour': ?dayEndHour,
+    'showFloatPerSecond': showFloatPerSecond,
   };
 
   static WorkConfig? tryParse(Map<String, dynamic> json) {
@@ -140,6 +145,9 @@ class WorkConfig {
       mode: mode,
       dayStartHour: start,
       dayEndHour: end,
+      showFloatPerSecond: json['showFloatPerSecond'] is bool
+          ? json['showFloatPerSecond'] as bool
+          : true,
     );
   }
 

@@ -1,7 +1,6 @@
 import 'package:tdesign_flutter/tdesign_flutter.dart';
 
 import '../format/money_format.dart';
-import '../models/work_config.dart';
 import '../services/income_calculator.dart';
 import '../state/app_model.dart';
 import '../widgets/per_second_fx.dart';
@@ -21,7 +20,6 @@ class DashboardPage extends StatelessWidget {
     final countdown = _CountdownCard(snapshot: snapshot);
     final rate = _RateCard(snapshot: snapshot);
     final stats = _StatsColumn(snapshot: snapshot);
-    final rules = _RuleCard(config: config, snapshot: snapshot);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -59,16 +57,7 @@ class DashboardPage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 16),
-                        Expanded(
-                          flex: 4,
-                          child: Column(
-                            children: [
-                              stats,
-                              const SizedBox(height: 16),
-                              rules,
-                            ],
-                          ),
-                        ),
+                        Expanded(flex: 4, child: stats),
                       ],
                     )
                   else ...[
@@ -77,8 +66,6 @@ class DashboardPage extends StatelessWidget {
                     rate,
                     const SizedBox(height: 12),
                     stats,
-                    const SizedBox(height: 12),
-                    rules,
                   ],
                   const SizedBox(height: 8),
                   TText(
@@ -323,48 +310,6 @@ class _MoneyRow extends StatelessWidget {
             value,
             style: incomeNumberStyle(fontSize: 30, color: token.brandColor),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RuleCard extends StatelessWidget {
-  const _RuleCard({required this.config, required this.snapshot});
-
-  final WorkConfig config;
-  final IncomeSnapshot snapshot;
-
-  @override
-  Widget build(BuildContext context) {
-    final token = context.tTheme;
-    final monthlySeconds = snapshot.workDays * config.dailyPaidSeconds;
-    final lines = [
-      '每日计薪 ${formatHours(config.dailyPaidHours)} = 8 - 午休 ${formatHourValue(config.lunchHours)} + 加班 ${formatHourValue(config.overtimeHours)}',
-      '${config.mode.label}：${config.mode.detail}',
-      '${snapshot.now.year}年${snapshot.now.month}月共 ${snapshot.workDays} 个计薪日',
-      '每秒收入 = ${config.salary} 元 ÷ ($monthlySeconds 秒)',
-    ];
-    return _Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TText(
-            '本月计算规则',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: token.textColorPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          for (final line in lines)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: TText(
-                line,
-                style: TextStyle(height: 1.45, color: token.textColorSecondary),
-              ),
-            ),
         ],
       ),
     );

@@ -12,6 +12,7 @@ class DesktopWindow {
 
   static const mainMinimum = Size(400, 560);
   static const floatSize = Size(248, 304);
+  static const compactFloatSize = Size(160, 160);
 
   Rect? restoreBounds;
   bool restoreMaximized = false;
@@ -38,7 +39,7 @@ class DesktopWindow {
     });
   }
 
-  Future<void> showFloat() async {
+  Future<void> showFloat({required bool showPerSecond}) async {
     if (await windowManager.isMaximized()) {
       restoreMaximized = true;
       await windowManager.unmaximize();
@@ -52,11 +53,16 @@ class DesktopWindow {
       TitleBarStyle.hidden,
       windowButtonVisibility: false,
     );
-    await windowManager.setMinimumSize(const Size(230, 280));
-    final anchor = floatPosition ?? await _defaultFloatPosition();
+    final size = _floatSize(showPerSecond: showPerSecond);
+    await windowManager.setMinimumSize(size);
+    final anchor = floatPosition ?? await _defaultFloatPosition(size);
     await windowManager.setBounds(
-      Rect.fromLTWH(anchor.dx, anchor.dy, floatSize.width, floatSize.height),
+      Rect.fromLTWH(anchor.dx, anchor.dy, size.width, size.height),
     );
+  }
+
+  Size _floatSize({required bool showPerSecond}) {
+    return showPerSecond ? floatSize : compactFloatSize;
   }
 
   Future<void> showMain() async {
@@ -109,7 +115,7 @@ class DesktopWindow {
     await windowManager.destroy();
   }
 
-  Future<Offset> _defaultFloatPosition() async {
+  Future<Offset> _defaultFloatPosition(Size floatSize) async {
     try {
       final display = await screenRetriever.getPrimaryDisplay();
       final origin = display.visiblePosition ?? Offset.zero;

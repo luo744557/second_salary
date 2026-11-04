@@ -85,7 +85,9 @@ class AppModel extends ChangeNotifier with WidgetsBindingObserver {
     }
     _windowBusy = true;
     try {
-      await DesktopWindow.instance.showFloat();
+      await DesktopWindow.instance.showFloat(
+        showPerSecond: config?.showFloatPerSecond ?? true,
+      );
       floating = true;
     } catch (error, stack) {
       floating = false;
@@ -104,7 +106,9 @@ class AppModel extends ChangeNotifier with WidgetsBindingObserver {
     _windowBusy = true;
     try {
       await DesktopWindow.instance.restoreIfMinimized();
-      await DesktopWindow.instance.showFloat();
+      await DesktopWindow.instance.showFloat(
+        showPerSecond: config?.showFloatPerSecond ?? true,
+      );
       floating = true;
     } catch (error, stack) {
       floating = false;

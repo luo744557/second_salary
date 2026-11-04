@@ -263,6 +263,25 @@ void main() {
         'lunchHours': 1,
         'overtimeHours': 0,
         'mode': 'doubleRest',
+      })?.showFloatPerSecond,
+      isTrue,
+    );
+    expect(
+      WorkConfig.tryParse({
+        'salary': 8000,
+        'lunchHours': 1,
+        'overtimeHours': 0,
+        'mode': 'doubleRest',
+        'showFloatPerSecond': false,
+      })?.showFloatPerSecond,
+      isFalse,
+    );
+    expect(
+      WorkConfig.tryParse({
+        'salary': 8000,
+        'lunchHours': 1,
+        'overtimeHours': 0,
+        'mode': 'doubleRest',
         'dayStartHour': 18,
         'dayEndHour': 9,
       }),
