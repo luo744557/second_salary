@@ -331,7 +331,7 @@ class _RuleCard extends StatelessWidget {
     final token = context.tTheme;
     final monthlySeconds = snapshot.workDays * config.dailyPaidSeconds;
     final lines = [
-      '每日计薪 ${formatHours(config.dailyPaidHours)} = 8 - 午休 ${formatHourValue(config.lunchHours)} + 加班 ${config.overtimeHours}',
+      '每日计薪 ${formatHours(config.dailyPaidHours)} = 8 - 午休 ${formatHourValue(config.lunchHours)} + 加班 ${formatHourValue(config.overtimeHours)}',
       '${config.mode.label}：${config.mode.detail}',
       '${snapshot.now.year}年${snapshot.now.month}月共 ${snapshot.workDays} 个计薪日',
       '每秒收入 = ${config.salary} 元 ÷ ($monthlySeconds 秒)',

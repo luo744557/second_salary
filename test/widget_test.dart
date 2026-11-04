@@ -17,10 +17,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
       expect(find.text('用户工资'), findsOneWidget);
       expect(find.text('日常午休时长'), findsOneWidget);
-      expect(find.text('是否单休'), findsOneWidget);
-      expect(find.text('是否大小周'), findsOneWidget);
-      expect(find.text('是否两周休一次'), findsOneWidget);
-      expect(find.text('是否整月无休'), findsOneWidget);
+      expect(find.text('双休'), findsOneWidget);
+      expect(find.text('单休'), findsOneWidget);
+      expect(find.text('大小周'), findsOneWidget);
+      expect(find.text('两周休一次'), findsOneWidget);
+      expect(find.text('整月无休'), findsOneWidget);
     } finally {
       await tester.pumpWidget(const SizedBox.shrink());
     }

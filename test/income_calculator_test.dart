@@ -180,5 +180,23 @@ void main() {
       }),
       isNull,
     );
+    expect(
+      WorkConfig.tryParse({
+        'salary': 8000,
+        'lunchHours': 1,
+        'overtimeHours': 1.5,
+        'mode': 'doubleRest',
+      })?.overtimeHours,
+      1.5,
+    );
+    expect(
+      WorkConfig.tryParse({
+        'salary': 8000,
+        'lunchHours': 1,
+        'overtimeHours': 6.5,
+        'mode': 'doubleRest',
+      }),
+      isNull,
+    );
   });
 }

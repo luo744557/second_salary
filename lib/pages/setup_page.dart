@@ -31,7 +31,7 @@ class _SetupPageState extends State<SetupPage> {
     _salary = config?.salary.toString() ?? '';
     _lunch = config == null ? '' : formatHourValue(config.lunchHours);
     _overtime = config != null && config.overtimeHours > 0
-        ? config.overtimeHours.toString()
+        ? formatHourValue(config.overtimeHours)
         : '';
     _mode = config?.mode ?? WorkMode.doubleRest;
     _salaryController = TextEditingController(text: _salary);
@@ -194,26 +194,28 @@ class _SetupPageState extends State<SetupPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   TText(
-                    '休假方式（可选，只能选一个）',
+                    '休假方式',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 17,
                       fontWeight: FontWeight.w600,
                       color: token.textColorPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
                   TText(
-                    '都不选时按双休计算，每周五天。',
+                    '选择一种。',
                     style: TextStyle(
                       fontSize: 12,
-                      color: token.textColorPlaceholder,
+                      color: token.textColorSecondary,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  _modeOption(WorkMode.singleRest, '是否单休', '每周六天，周日休息'),
-                  _modeOption(WorkMode.bigSmallWeek, '是否大小周', '一周七天、一周六天交替'),
-                  _modeOption(WorkMode.biweeklyRest, '是否两周休一次', '按每周七天计入当月'),
-                  _modeOption(WorkMode.fullMonth, '是否整月无休', '按本月每一天计入'),
+                  const SizedBox(height: 12),
+                  for (final mode in WorkMode.values)
+                    _RestModeCard(
+                      mode: mode,
+                      selected: _mode == mode,
+                      onTap: () => setState(() => _mode = mode),
+                    ),
                 ],
               ),
             ),
@@ -259,21 +261,18 @@ class _SetupPageState extends State<SetupPage> {
       onChanged: (value) => setState(() => _salary = value),
       validator: _validateSalary,
       builder: (context, value, onChanged, errorText) {
-        return TFormItem(
+        return _RuleField(
           label: '用户工资',
-          help: '必填，税前月工资，单位元，正整数',
-          child: TInput(
-            controller: _salaryController,
-            hintText: '例如 15000',
-            inputType: TextInputType.number,
-            inputAction: TextInputAction.next,
-            status: errorText == null
-                ? TInputStatus.normal
-                : TInputStatus.error,
-            clearButtonMode: TInputClearButtonMode.focused,
-            inputFormatters: const [_PositiveIntFormatter()],
-            onChanged: onChanged,
-          ),
+          help: '税前月工资，正整数',
+          unit: '元',
+          required: true,
+          controller: _salaryController,
+          hintText: '例如 15000',
+          inputType: TextInputType.number,
+          inputAction: TextInputAction.next,
+          inputFormatters: const [_PositiveIntFormatter()],
+          errorText: errorText,
+          onChanged: onChanged,
         );
       },
     );
@@ -288,21 +287,18 @@ class _SetupPageState extends State<SetupPage> {
       onChanged: (value) => setState(() => _lunch = value),
       validator: _validateLunch,
       builder: (context, value, onChanged, errorText) {
-        return TFormItem(
+        return _RuleField(
           label: '日常午休时长',
-          help: '必填，范围 0.50 到 2.50。可填正整数，小数最多两位',
-          child: TInput(
-            controller: _lunchController,
-            hintText: '例如 1 或 1.5',
-            inputType: const TextInputType.numberWithOptions(decimal: true),
-            inputAction: TextInputAction.next,
-            status: errorText == null
-                ? TInputStatus.normal
-                : TInputStatus.error,
-            clearButtonMode: TInputClearButtonMode.focused,
-            inputFormatters: const [_LunchFormatter()],
-            onChanged: onChanged,
-          ),
+          help: '0.50 到 2.50，可填整数，小数最多两位',
+          unit: '小时',
+          required: true,
+          controller: _lunchController,
+          hintText: '例如 1 或 1.5',
+          inputType: const TextInputType.numberWithOptions(decimal: true),
+          inputAction: TextInputAction.next,
+          inputFormatters: const [_LunchFormatter()],
+          errorText: errorText,
+          onChanged: onChanged,
         );
       },
     );
@@ -315,37 +311,18 @@ class _SetupPageState extends State<SetupPage> {
       onChanged: (value) => setState(() => _overtime = value),
       validator: _validateOvertime,
       builder: (context, value, onChanged, errorText) {
-        return TFormItem(
+        return _RuleField(
           label: '日常加班时长',
-          help: '选填。填写时为 1 到 6 的正整数，加在 8 小时班次之后',
-          child: TInput(
-            controller: _overtimeController,
-            hintText: '不加班可留空',
-            inputType: TextInputType.number,
-            inputAction: TextInputAction.done,
-            status: errorText == null
-                ? TInputStatus.normal
-                : TInputStatus.error,
-            clearButtonMode: TInputClearButtonMode.focused,
-            inputFormatters: const [_OvertimeFormatter()],
-            onChanged: onChanged,
-          ),
+          help: '选填。可填正整数，小数最多两位，不超过 6',
+          unit: '小时',
+          controller: _overtimeController,
+          hintText: '例如 1 或 1.5',
+          inputType: const TextInputType.numberWithOptions(decimal: true),
+          inputAction: TextInputAction.done,
+          inputFormatters: const [_OvertimeFormatter()],
+          errorText: errorText,
+          onChanged: onChanged,
         );
-      },
-    );
-  }
-
-  Widget _modeOption(WorkMode mode, String title, String subtitle) {
-    return TCheckbox(
-      value: _mode == mode,
-      title: title,
-      subTitle: subtitle,
-      cardMode: true,
-      showDivider: false,
-      onChanged: (checked) {
-        setState(() {
-          _mode = checked == true ? mode : WorkMode.doubleRest;
-        });
       },
     );
   }
@@ -366,7 +343,7 @@ class _SetupPageState extends State<SetupPage> {
     return WorkConfig(
       salary: int.parse(_salary),
       lunchHours: double.parse(_lunch),
-      overtimeHours: _overtime.isEmpty ? 0 : int.parse(_overtime),
+      overtimeHours: _overtime.isEmpty ? 0.0 : double.parse(_overtime),
       mode: _mode,
     );
   }
@@ -414,10 +391,266 @@ class _SetupPageState extends State<SetupPage> {
     if (text.isEmpty) {
       return null;
     }
-    if (!RegExp(r'^[1-6]$').hasMatch(text)) {
-      return '请输入 1 到 6 的正整数';
+    if (!RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(text)) {
+      return '请输入正整数，或最多两位小数';
+    }
+    final hours = double.tryParse(text);
+    if (hours == null || hours <= 0 || hours > WorkConfig.maxOvertimeHours) {
+      return '请输入大于 0 且不超过 6 的数字';
     }
     return null;
+  }
+}
+
+class _RuleField extends StatefulWidget {
+  const _RuleField({
+    required this.label,
+    required this.help,
+    required this.unit,
+    required this.controller,
+    required this.hintText,
+    required this.inputType,
+    required this.inputAction,
+    required this.inputFormatters,
+    required this.onChanged,
+    this.errorText,
+    this.required = false,
+  });
+
+  final String label;
+  final String help;
+  final String unit;
+  final TextEditingController controller;
+  final String hintText;
+  final TextInputType inputType;
+  final TextInputAction inputAction;
+  final List<TextInputFormatter> inputFormatters;
+  final ValueChanged<String>? onChanged;
+  final String? errorText;
+  final bool required;
+
+  @override
+  State<_RuleField> createState() => _RuleFieldState();
+}
+
+class _RuleFieldState extends State<_RuleField> {
+  final _focusNode = FocusNode();
+  bool _hovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final token = context.tTheme;
+    final theme = Theme.of(context);
+    final invalid = widget.errorText != null;
+    final focused = _focusNode.hasFocus;
+    final emphasized = invalid || focused;
+    final borderColor = invalid
+        ? token.errorColor
+        : focused
+        ? token.brandColor
+        : _hovered
+        ? const Color(0xFF86868B)
+        : const Color(0xFFD2D2D7);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              TText(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 17,
+                  height: 1.3,
+                  fontWeight: FontWeight.w600,
+                  color: token.textColorPrimary,
+                ),
+              ),
+              const Spacer(),
+              TText(
+                widget.required ? '必填' : '选填',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: widget.required
+                      ? token.brandColor
+                      : token.textColorPlaceholder,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          TText(
+            widget.help,
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: token.textColorSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          MouseRegion(
+            onEnter: (_) => setState(() => _hovered = true),
+            onExit: (_) => setState(() => _hovered = false),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              padding: EdgeInsets.all(emphasized ? 0 : 1),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: borderColor,
+                  width: emphasized ? 2 : 1,
+                ),
+              ),
+              child: Theme(
+                data: theme.copyWith(
+                  extensions: [
+                    for (final extension in theme.extensions.values)
+                      if (extension is! TInputThemeData) extension,
+                    const TInputThemeData(
+                      backgroundColor: Colors.transparent,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      borderWidth: 0,
+                    ),
+                  ],
+                ),
+                child: TInput(
+                  controller: widget.controller,
+                  focusNode: _focusNode,
+                  hintText: widget.hintText,
+                  inputType: widget.inputType,
+                  inputAction: widget.inputAction,
+                  borderless: true,
+                  status: invalid ? TInputStatus.error : TInputStatus.normal,
+                  clearButtonMode: TInputClearButtonMode.focused,
+                  inputFormatters: widget.inputFormatters,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  suffix: TText(
+                    widget.unit,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: token.textColorSecondary,
+                    ),
+                  ),
+                  onChanged: widget.onChanged,
+                ),
+              ),
+            ),
+          ),
+          if (invalid) ...[
+            const SizedBox(height: 6),
+            TText(
+              widget.errorText!,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.4,
+                color: token.errorColor,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RestModeCard extends StatefulWidget {
+  const _RestModeCard({
+    required this.mode,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final WorkMode mode;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_RestModeCard> createState() => _RestModeCardState();
+}
+
+class _RestModeCardState extends State<_RestModeCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final token = context.tTheme;
+    final selected = widget.selected;
+    final borderColor = selected
+        ? token.brandColor
+        : _hovered
+        ? const Color(0xFF86868B)
+        : const Color(0xFFD2D2D7);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            curve: Curves.easeOut,
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(
+              horizontal: selected ? 15 : 16,
+              vertical: selected ? 11 : 12,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor, width: selected ? 2 : 1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TText(
+                  widget.mode.label,
+                  style: TextStyle(
+                    fontSize: 17,
+                    height: 1.3,
+                    fontWeight: FontWeight.w600,
+                    color: token.textColorPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                TText(
+                  widget.mode.detail,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.4,
+                    color: token.textColorSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -461,7 +694,8 @@ class _OvertimeFormatter extends TextInputFormatter {
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
-    if (newValue.text.isEmpty || RegExp(r'^[1-6]$').hasMatch(newValue.text)) {
+    if (newValue.text.isEmpty ||
+        RegExp(r'^\d?(\.\d{0,2})?$').hasMatch(newValue.text)) {
       return newValue;
     }
     return oldValue;

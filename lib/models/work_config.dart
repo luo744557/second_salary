@@ -71,8 +71,8 @@ class WorkConfig {
   /// 每日午休时长，单位小时。可以是整数，也可以带最多两位小数。
   final double lunchHours;
 
-  /// 每日加班时长，单位小时。0 表示不加班。
-  final int overtimeHours;
+  /// 每日加班时长，单位小时。可以是整数，也可以带最多两位小数。0 表示不加班。
+  final double overtimeHours;
 
   final WorkMode mode;
 
@@ -101,12 +101,11 @@ class WorkConfig {
     if (salary is! int || salary <= 0 || mode == null || lunch is! num) {
       return null;
     }
+    if (overtime is! num) {
+      return null;
+    }
     final lunchHours = (lunch.toDouble() * 100).round() / 100;
-    final overtimeHours = switch (overtime) {
-      int value => value,
-      num value => value.toInt(),
-      _ => -1,
-    };
+    final overtimeHours = (overtime.toDouble() * 100).round() / 100;
     if (lunchHours < 0.5 ||
         lunchHours > 2.5 ||
         overtimeHours < 0 ||
